@@ -50,9 +50,6 @@ end
 
 function test_hybrid_kkt_cpu(nlp, linear_solver)
     # Callback
-    ind_cons = MadNLP.get_index_constraints(
-        nlp,
-    )
     cb = MadNLP.create_callback(
         MadNLP.SparseCallback,
         nlp,
@@ -60,7 +57,7 @@ function test_hybrid_kkt_cpu(nlp, linear_solver)
 
     # Build reference KKT system (here SparseKKTSystem)
     kkt_ref = MadNLP.create_kkt_system(
-        MadNLP.SparseKKTSystem, cb, ind_cons, linear_solver;
+        MadNLP.SparseKKTSystem, cb, linear_solver;
     )
     initialize_kkt!(kkt_ref, cb)
     MadNLP.factorize!(kkt_ref.linear_solver)
@@ -70,7 +67,7 @@ function test_hybrid_kkt_cpu(nlp, linear_solver)
 
     # Build HybridCondensedKKTSystem
     kkt = MadNLP.create_kkt_system(
-        HybridKKT.HybridCondensedKKTSystem, cb, ind_cons, linear_solver;
+        HybridKKT.HybridCondensedKKTSystem, cb, linear_solver;
     )
     initialize_kkt!(kkt, cb)
     MadNLP.factorize!(kkt.linear_solver)
@@ -94,16 +91,13 @@ end
 
 function test_hybrid_kkt_cuda(nlp, linear_solver)
     # Callback
-    ind_cons = MadNLP.get_index_constraints(
-        nlp,
-    )
     cb = MadNLP.create_callback(
         MadNLP.SparseCallback,
         nlp,
     )
     # Build HybridCondensedKKTSystem
     kkt = MadNLP.create_kkt_system(
-        HybridKKT.HybridCondensedKKTSystem, cb, ind_cons, linear_solver;
+        HybridKKT.HybridCondensedKKTSystem, cb, linear_solver;
     )
     initialize_kkt!(kkt, cb)
     MadNLP.factorize!(kkt.linear_solver)

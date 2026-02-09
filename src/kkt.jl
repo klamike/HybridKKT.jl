@@ -67,7 +67,6 @@ end
 function MadNLP.create_kkt_system(
     ::Type{HybridCondensedKKTSystem},
     cb::MadNLP.SparseCallback{T,VT},
-    ind_cons,
     linear_solver;
     opt_linear_solver=MadNLP.default_options(linear_solver),
     hessian_approximation=MadNLP.ExactHessian,
@@ -77,17 +76,11 @@ function MadNLP.create_kkt_system(
 
     n = cb.nvar
     m = cb.ncon
-    ind_ineq = ind_cons.ind_ineq
+    ind_ineq = cb.ind_ineq
+    ind_eq = cb.ind_eq
     mi = length(ind_ineq)
+    me = length(ind_eq)
     VI = typeof(ind_ineq)
-
-    ind_eq = if isa(ind_ineq, Vector)
-        setdiff(1:m, ind_ineq)
-    else
-        ind_ineq_host = Vector(ind_ineq)
-        VI(setdiff(1:m, ind_ineq_host))
-    end
-    me = m - mi
 
     # Evaluate sparsity pattern
     jac_sparsity_I = MadNLP.create_array(cb, Int32, cb.nnzj)
@@ -102,8 +95,8 @@ function MadNLP.create_kkt_system(
     n_jac = length(jac_sparsity_I)
     n_hess = length(hess_sparsity_I)
     n_tot = n + mi
-    nlb = length(ind_cons.ind_lb)
-    nub = length(ind_cons.ind_ub)
+    nlb = length(cb.ind_lb)
+    nub = length(cb.ind_ub)
 
     reg = VT(undef, n_tot)
     pr_diag = VT(undef, n_tot)
@@ -148,7 +141,8 @@ function MadNLP.create_kkt_system(
         Vector(jac_sparsity_J),
         Vector(jac),
     )
-    G_csc_, G_csc_map_, ind_eq_jac_ = _extract_subjacobian(jac_coo, Vector(ind_eq))
+    ind_eq_host = isa(ind_eq, Vector) ? ind_eq : Vector(ind_eq)
+    G_csc_, G_csc_map_, ind_eq_jac_ = _extract_subjacobian(jac_coo, ind_eq_host)
     MT = typeof(hess_com)
     G_csc = MT(G_csc_)
     G_csc_map = VI(G_csc_map_)
@@ -205,7 +199,7 @@ function MadNLP.create_kkt_system(
         buffer1, buffer2, buffer3, buffer4, buffer5, buffer6,
         aug_com, diag_buffer, dptr, hptr, jptr,
         linear_solver, iterative_linear_solver,
-        ind_ineq, ind_eq, ind_cons.ind_lb, ind_cons.ind_ub,
+        ind_ineq, ind_eq, cb.ind_lb, cb.ind_ub,
         ext, etc,
     )
 end
@@ -305,7 +299,7 @@ function MadNLP.build_kkt!(kkt::HybridCondensedKKTSystem)
 end
 
 # solve!
-function MadNLP.solve!(kkt::HybridCondensedKKTSystem{T}, w::MadNLP.AbstractKKTVector)  where T
+function MadNLP.solve_kkt_system!(kkt::HybridCondensedKKTSystem{T}, w::MadNLP.AbstractKKTVector)  where T
     (n,m) = size(kkt.jt_csc)
     mi = length(kkt.ind_ineq)
     G = kkt.G_csc
@@ -338,7 +332,7 @@ function MadNLP.solve!(kkt::HybridCondensedKKTSystem{T}, w::MadNLP.AbstractKKTVe
     mul!(r1, G', wy, kkt.gamma[], one(T))                   # r1 = wx + γ Gᵀ wy
     wx .= r1                                                # (save for later)
     kkt.etc[:time_backsolve] += @elapsed_hykkt begin
-        MadNLP.solve!(kkt.linear_solver, r1)                # r1 = (Kγ)⁻¹ [wx + γ Gᵀ wy]
+        MadNLP.solve_linear_system!(kkt.linear_solver, r1)                # r1 = (Kγ)⁻¹ [wx + γ Gᵀ wy]
     end
     mul!(wy, G, r1, one(T), -one(T))                        # -wy + G (Kγ)⁻¹ [wx + γ Gᵀ wy]
 
@@ -370,7 +364,7 @@ function MadNLP.solve!(kkt::HybridCondensedKKTSystem{T}, w::MadNLP.AbstractKKTVe
     # Extract solution of Golub & Greif
     mul!(wx, G', wy, -one(T), one(T))
     kkt.etc[:time_backsolve] += @elapsed_hykkt begin
-        MadNLP.solve!(kkt.linear_solver, wx)
+        MadNLP.solve_linear_system!(kkt.linear_solver, wx)
     end
 
     # Extract condensation
@@ -402,7 +396,7 @@ function MadNLP.solve_refine_wrapper!(
     copyto!(d.values, p.values)
 
     solver.cnt.linear_solver_time += @elapsed_hykkt begin
-        MadNLP.solve!(solver.kkt, d)
+        MadNLP.solve_kkt_system!(solver.kkt, d)
     end
 
     # Compute backsolve's error

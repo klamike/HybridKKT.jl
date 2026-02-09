@@ -33,7 +33,7 @@ Base.eltype(S::SchurComplementOperator{T}) where T = T
 function LinearAlgebra.mul!(y::VT, S::SchurComplementOperator{T, VT}, x::VT, alpha::Number, beta::Number) where {T, VT}
     y .= beta .* y
     mul!(S.buf1, S.G', x, alpha, zero(T))
-    MadNLP.solve!(S.K, S.buf1)
+    MadNLP.solve_linear_system!(S.K, S.buf1)
     mul!(y, S.G, S.buf1, one(T), one(T))
     return y
 end
@@ -60,7 +60,7 @@ Base.eltype(S::CondensedOperator{T}) where T = T
 function LinearAlgebra.mul!(y::VT, S::CondensedOperator{T, VT}, x::VT, alpha::Number, beta::Number) where {T, VT}
     y .= beta .* y
     S.buf1 .= x
-    MadNLP.solve!(S.K, S.buf1)
+    MadNLP.solve_linear_system!(S.K, S.buf1)
     axpy!(one(T), S.buf1, y)
     return y
 end
@@ -118,4 +118,3 @@ function _extract_subjacobian(jac::SparseMatrixCOO{Tv, Ti}, index_rows::Abstract
 
     return G, mapG, ind_eq_jac
 end
-
