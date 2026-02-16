@@ -299,7 +299,7 @@ function MadNLP.build_kkt!(kkt::HybridCondensedKKTSystem)
 end
 
 # solve!
-function MadNLP.solve_kkt_system!(kkt::HybridCondensedKKTSystem{T}, w::MadNLP.AbstractKKTVector)  where T
+function MadNLP.solve_kkt!(kkt::HybridCondensedKKTSystem{T}, w::MadNLP.AbstractKKTVector)  where T
     (n,m) = size(kkt.jt_csc)
     mi = length(kkt.ind_ineq)
     G = kkt.G_csc
@@ -396,7 +396,7 @@ function MadNLP.solve_refine_wrapper!(
     copyto!(d.values, p.values)
 
     solver.cnt.linear_solver_time += @elapsed_hykkt begin
-        MadNLP.solve_kkt_system!(solver.kkt, d)
+        MadNLP.solve_kkt!(solver.kkt, d)
     end
 
     # Compute backsolve's error
